@@ -17,10 +17,10 @@ headers = {"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,imag
            "TE": "Trailers",
            "Upgrade-Insecure-Requests": "1",
            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:72.0) Gecko/20100101 Firefox/72.0"}
-slack_cookies = {"b": os.environ.get('b'),
-                 "d": os.environ.get('d'),
-                 "d-s": os.environ.get('ds'),
-                 "x": os.environ.get('x')}
+slack_cookies = {"b": os.environ.get('slack_b'),
+                 "d": os.environ.get('slack_d'),
+                 "d-s": os.environ.get('slack_ds'),
+                 "x": os.environ.get('slack_x')}
 
 
 @app.route('/')
@@ -82,13 +82,17 @@ def check_search():
                 search_name, new_ids)
             seen_ids |= ids
         all_ids[search_name]['ids'] = list(seen_ids)
-    write_ids(all_ids)
     if message:
         requests.get(
             "https://slack.com/api/chat.postMessage?token={}&channel={}&text={}&pretty=1".format(
                 token, channel, message),
             headers=headers, cookies=slack_cookies
         )
+        if resp.status_code == 200:
+            write_ids(all_ids)
+        else:
+            print('error posting to slack')
+
     return "{}".format(message)
 
 

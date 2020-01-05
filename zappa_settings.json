@@ -7,7 +7,7 @@
         "runtime": "python3.6",
         "s3_bucket": "zappa-quclkkpt5",
         "keep_warm": false,
-        "endpoint_configuration": "private",
+        "api_key_required": true,
         "events": [{
             "function": "app.check_search",
             "expression": "cron(*/20 8-23 ? * * *)"
