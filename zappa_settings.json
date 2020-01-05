@@ -1,0 +1,16 @@
+{
+    "dev": {
+        "app_function": "app.app",
+        "aws_region": "us-west-2",
+        "profile_name": "default",
+        "project_name": "app",
+        "runtime": "python3.6",
+        "s3_bucket": "zappa-quclkkpt5",
+        "keep_warm": false,
+        "endpoint_configuration": "private",
+        "events": [{
+            "function": "app.check_search",
+            "expression": "cron(*/20 8-23 ? * * *)"
+        }]
+    }
+}
