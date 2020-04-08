@@ -1,9 +1,12 @@
-from flask import Flask, jsonify
-import os
-import requests
-import re
-import boto3
 import json
+import os
+import re
+import subprocess
+
+import requests
+
+import boto3
+from flask import Flask, jsonify
 
 app = Flask(__name__)
 
@@ -28,22 +31,27 @@ def hello():
     return "Hello World!"
 
 
-def get_ids():
+def get_ids(file='ids.json'):
     s3 = boto3.resource('s3')
-    obj = s3.Object('lbc-store-ids', 'ids.json')
+    obj = s3.Object('lbc-store-ids', file)
     body = obj.get()['Body'].read().decode('utf-8')
     return json.loads(body)
 
 
-def write_ids(ids):
+def write_ids(ids, file='ids.json'):
     s3 = boto3.resource('s3')
-    obj = s3.Object('lbc-store-ids', 'ids.json')
+    obj = s3.Object('lbc-store-ids', file)
     obj.put(Body=json.dumps(ids))
 
 
 @app.route('/read_ids')
 def read_ids():
     return "stored ids: {}".format(get_ids())
+
+
+@app.route('/read_ids_match')
+def read_match_ids():
+    return "stored ids: {}".format(get_ids(file='ids_match.json'))
 
 
 @app.route('/add/<name>/<text>/<category>', methods=['GET'])
@@ -58,6 +66,23 @@ def add_search(name, text, category):
 @app.route('/remove/<name>', methods=['GET'])
 def remove_search(name):
     searches = get_ids()
+    del searches[name]
+    write_ids(searches)
+    return 'ok'
+
+
+@app.route('/add_match/<name>/<search_url>/<match_string>/', methods=['GET'])
+def add_search_match(name, search_url, match_string):
+    searches = get_ids(file='ids_match.json')
+    searches[name] = {'search_url': search_url,
+                      'match_string': match_string}
+    write_ids(searches)
+    return 'ok'
+
+
+@app.route('/remove_match/<name>', methods=['GET'])
+def remove_search_match(name):
+    searches = get_ids(file='ids_match.json')
     del searches[name]
     write_ids(searches)
     return 'ok'
@@ -83,7 +108,7 @@ def check_search():
             seen_ids |= ids
         all_ids[search_name]['ids'] = list(seen_ids)
     if message:
-        requests.get(
+        resp = requests.get(
             "https://slack.com/api/chat.postMessage?token={}&channel={}&text={}&pretty=1".format(
                 token, channel, message),
             headers=headers, cookies=slack_cookies
@@ -91,6 +116,31 @@ def check_search():
         if resp.status_code == 200:
             write_ids(all_ids)
         else:
+            print('error posting to slack')
+
+    return "{}".format(message)
+
+
+@app.route('/check_search_match')
+def check_search_match():
+    message = ''
+    all_ids = get_ids(file='ids_match.json')
+    for search_name, query_params in all_ids.items():
+        search_url = query_params['search_url']
+        match_string = query_params['match_string']
+        p = subprocess.Popen(['curl', search_url], shell=True,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, _ = p.communicate()
+        if match_string not in out.decode():
+            message += '\n- {} : {} not found in {}'.format(
+                search_name, match_string, search_url)
+    if message:
+        resp = requests.get(
+            "https://slack.com/api/chat.postMessage?token={}&channel={}&text={}&pretty=1".format(
+                token, channel, message),
+            headers=headers, cookies=slack_cookies
+        )
+        if resp.status_code != 200:
             print('error posting to slack')
 
     return "{}".format(message)
